@@ -4,14 +4,16 @@ from urllib.parse import urlparse, quote
 
 # classes #####################################################################    
 class item_record:
-    def __init__(self, barcode, apikey):
+    def __init__(self, barcode, apitype, base_url, apikey):
         self.item_record = item_record
         
         # generate request url, escape special characters
-        url = f"https://api-na.hosted.exlibrisgroup.com/almaws/v1/items?view=label&item_barcode={barcode}&apikey={apikey}"
+        if (apitype == 'AMAZON_API_GATEWAY'):
+            url = f"{base_url}/items/{barcode}"
+        else:
+            url = f"{base_url}/items?view=label&item_barcode={barcode}&apikey={apikey}"
         encoded_url = quote(url, safe='/:?=&', encoding=None, errors=None)
         self.r = requests.get(encoded_url)
-        
         # parse
         self.xml = self.r.text
         self.dict = xmltodict.parse(self.xml)
@@ -110,24 +112,30 @@ class ret:
     def __init__(self):
         self.ret = ret
     
-    def post(self, apikey, library, circ_desk, register_in_house_use, mms_id, holding_id, item_pid, xml):
-        headers = {
-            'Content-Type': 'application/xml', 
-            'Charset':'UTF-8', 
-            'Authorization': 'apikey {}'.format(apikey)
-        }
-                   
-        params = {
-            'op': 'scan',
-            'library': library,
-            'circ_desk': circ_desk,
-            'register_in_house_use': register_in_house_use,
-        }
+    def post(self, apitype, base_url, apikey, library, circ_desk, register_in_house_use, mms_id, holding_id, item_pid, xml):
+        if (apitype == 'AMAZON_API_GATEWAY'):
+            headers = {
+                'Content-Type': 'application/xml', 
+                'Charset':'UTF-8', 
+                'X-API-KEY': apikey
+            }
+            return_url = f"{base_url}/bibs/{mms_id}/holdings/{holding_id}/items/{item_pid}/{register_in_house_use}"
+            r = requests.post(return_url, data=xml.encode('utf-8'), headers=headers)
+        else:
+            headers = {
+                'Content-Type': 'application/xml', 
+                'Charset':'UTF-8', 
+                'Authorization': 'apikey {}'.format(apikey)
+            }
+            params = {
+                'op': 'scan',
+                'library': library,
+                'circ_desk': circ_desk,
+                'register_in_house_use': register_in_house_use,
+            }
+            return_url = f"{base_url}/bibs/{mms_id}/holdings/{holding_id}/items/{item_pid}"        
+            r = requests.post(return_url, data=xml.encode('utf-8'), headers=headers, params=params)
         
-        base_url = 'https://api-na.hosted.exlibrisgroup.com/almaws/v1'
-        return_url = f"{base_url}/bibs/{mms_id}/holdings/{holding_id}/items/{item_pid}"
-        
-        r = requests.post(return_url, data=xml.encode('utf-8'), headers=headers, params=params)
         xml = r.text
         dict = xmltodict.parse(xml)
         
